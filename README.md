@@ -32,9 +32,11 @@ Restart omp (or run `/restart`) after installing.
 - TypeScript extension module loaded directly by omp's Bun runtime; no build step.
 - Needs `herdr-app` on `PATH` (the Herdr installer puts it in `~/.local/bin`).
 
-## Release
+## CI and release
 
-Pushing a `v*` tag runs [`.github/workflows/release.yml`](.github/workflows/release.yml): it checks the tag against `package.json`, smoke-tests the extension with Bun, publishes to npm with provenance, and creates the GitHub release.
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push to `main` and every pull request: the Bun smoke test (`bun scripts/smoke.ts`) and a check that the npm package holds only `README.md`, `index.ts` and `package.json`.
+
+Pushing a `v*` tag runs [`.github/workflows/release.yml`](.github/workflows/release.yml): it checks the tag against `package.json`, runs the same smoke test, publishes to npm with provenance, and creates the GitHub release.
 
 ```sh
 git tag v0.1.0

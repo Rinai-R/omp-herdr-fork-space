@@ -38,19 +38,7 @@ jobs:
           fi
 
       - name: Smoke test extension
-        run: |
-          bun -e '
-            const mod = await import("./index.ts");
-            if (typeof mod.default !== "function") throw new Error("missing default extension factory");
-            const named = mod.spaceArgs(["omp"], "/w", {}, "水印");
-            if (named.name !== "水印 (fork)") throw new Error("fork name wrong: " + named.name);
-            const ls = { spaces: [{ name: "水印", tabs: [{ terminals: [{ terminal: "t3" }] }] }] };
-            if (mod.spaceNameOf(ls, "t3") !== "水印" || mod.spaceNameOf(ls, "t9") !== undefined) throw new Error("space lookup wrong");
-            if (!mod.isHerdrCoreHost({ HC_TERMINAL_ID: "t1" })) throw new Error("herdr-core detection failed");
-            if (mod.isHerdrCoreHost({ TERM_PROGRAM: "ghostty" })) throw new Error("plain Ghostty must not count as herdr-core");
-            const args = mod.spaceArgs(["omp", "--fork", "/s.jsonl"], "/w", { XDG_DATA_HOME: "/x", OMP_PROFILE: undefined });
-            if (args.folder !== "/w" || args.argv.join(" ") !== "/usr/bin/env XDG_DATA_HOME=/x omp --fork /s.jsonl") throw new Error("space args wrong: " + JSON.stringify(args));
-          '
+        run: bun scripts/smoke.ts
 
       - name: Publish to npm
         run: npm publish --provenance --access public
