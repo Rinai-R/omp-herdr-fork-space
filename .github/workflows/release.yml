@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Verify tag matches package version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$version" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json version ${version}"
+            exit 1
+          fi
+
+      - name: Smoke test extension
+        run: |
+          bun -e '
+            const mod = await import("./index.ts");
+            if (typeof mod.default !== "function") throw new Error("missing default extension factory");
+            if (!mod.isHerdrCoreHost({ HC_TERMINAL_ID: "t1" })) throw new Error("herdr-core detection failed");
+            if (mod.isHerdrCoreHost({ TERM_PROGRAM: "ghostty" })) throw new Error("plain Ghostty must not count as herdr-core");
+            const args = mod.spaceArgs(["omp", "--fork", "/s.jsonl"], "/w", { XDG_DATA_HOME: "/x", OMP_PROFILE: undefined });
+            if (args.folder !== "/w" || args.argv.join(" ") !== "/usr/bin/env XDG_DATA_HOME=/x omp --fork /s.jsonl") throw new Error("space args wrong: " + JSON.stringify(args));
+          '
+
+      - name: Publish to npm
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN || vars.NPM_TOKEN }}
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes --verify-tag

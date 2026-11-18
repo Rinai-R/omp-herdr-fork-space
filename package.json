@@ -1,0 +1,27 @@
+{
+  "name": "omp-herdr-fork-space",
+  "version": "0.1.0",
+  "description": "omp extension: bare /fork opens the forked session in a new Herdr space",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rinai-R/omp-herdr-fork-space.git"
+  },
+  "homepage": "https://github.com/Rinai-R/omp-herdr-fork-space#readme",
+  "bugs": {
+    "url": "https://github.com/Rinai-R/omp-herdr-fork-space/issues"
+  },
+  "keywords": [
+    "omp",
+    "oh-my-pi",
+    "herdr",
+    "fork",
+    "extension"
+  ],
+  "files": [
+    "index.ts"
+  ],
+  "omp": {
+    "extensions": ["./index.ts"]
+  }
+}
