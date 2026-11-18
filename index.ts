@@ -36,25 +36,60 @@ function scopeEnv(env: NodeJS.ProcessEnv): Record<string, string | undefined> {
 	return scope;
 }
 
+/** The name a fork's space gets: the parent space's name, marked as a fork. */
+export function forkName(parent: string): string {
+	return `${parent} (fork)`;
+}
+
 /**
- * The `space.new` arguments for a fork: the child runs in the parent's folder
- * and the new space is shown. A herdr-core terminal gets its environment from
- * the core, not from this process, so the scope variables ride on
- * `env K=V … omp`.
+ * The name of the Herdr space showing `terminal`, from `herdr-app ls`.
+ * Undefined when the window doesn't list it (a terminal on another machine,
+ * or one not in any tab).
+ */
+export function spaceNameOf(ls: unknown, terminal: string): string | undefined {
+	const spaces = (ls as { spaces?: { name?: string; tabs?: { terminals?: { terminal?: string }[] }[] }[] })?.spaces;
+	for (const space of spaces ?? []) {
+		for (const tab of space.tabs ?? []) {
+			if (tab.terminals?.some(t => t.terminal === terminal)) return space.name || undefined;
+		}
+	}
+	return undefined;
+}
+
+/**
+ * The `space.new` arguments for a fork: the child runs in the parent's folder,
+ * named after the parent's space when it has one, and the new space is shown.
+ * A herdr-core terminal gets its environment from the core, not from this
+ * process, so the scope variables ride on `env K=V … omp`.
  */
 export function spaceArgs(
 	argv: readonly string[],
 	cwd: string,
 	env: Readonly<Record<string, string | undefined>>,
-): { folder: string; argv: string[]; focus: true } {
+	parentName?: string,
+): { name?: string; folder: string; argv: string[]; focus: true } {
 	const assignments = Object.entries(env)
 		.filter((entry): entry is [string, string] => Boolean(entry[1]))
 		.map(([key, value]) => `${key}=${value}`);
 	return {
+		...(parentName ? { name: forkName(parentName) } : {}),
 		folder: cwd,
 		argv: assignments.length > 0 ? ["/usr/bin/env", ...assignments, ...argv] : [...argv],
 		focus: true,
 	};
+}
+
+/** The parent's space name; undefined when it can't be read (the fork still opens, named by Herdr). */
+async function parentSpaceName(pi: Pick<ExtensionAPI, "exec">): Promise<string | undefined> {
+	const terminal = process.env.HC_TERMINAL_ID;
+	if (!terminal) return undefined;
+	const result = await pi.exec("herdr-app", ["ls"], { timeout: HERDR_APP_TIMEOUT_MS });
+	if (result.code !== 0) return undefined;
+	try {
+		return spaceNameOf(JSON.parse(result.stdout), terminal);
+	} catch {
+		return undefined;
+	}
 }
 
 /** Open a fork of the current session in a new Herdr space. */
@@ -74,7 +109,7 @@ export async function openForkSpace(
 	if (profile) argv.push("--profile", profile);
 	argv.push("--fork", source);
 
-	const args = spaceArgs(argv, ctx.cwd, scopeEnv(process.env));
+	const args = spaceArgs(argv, ctx.cwd, scopeEnv(process.env), await parentSpaceName(pi));
 	const result = await pi.exec("herdr-app", ["do", "space.new", JSON.stringify(args)], { timeout: HERDR_APP_TIMEOUT_MS });
 	if (result.code !== 0) {
 		throw new Error(result.stderr.trim() || result.stdout.trim() || `herdr-app exited with code ${result.code}`);
